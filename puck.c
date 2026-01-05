@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <lib/flipper_format/flipper_format_i.h> // for storage handling for highscore
 #include "puck_icons.h" // Custom icon definitions, header file is auto-magically generated
 
 // Maze dimensions
@@ -294,6 +295,40 @@ static bool check_maze_consistency(void) {
     }
     
     return consistent;
+}
+
+const char* highscore_save_file_path = APP_DATA_PATH("highscore.txt");
+
+uint32_t load_highscore() {
+  Storage* storage = furi_record_open(RECORD_STORAGE);
+  uint32_t ret = 0;
+
+  File* file = storage_file_alloc(storage);
+  if (storage_file_open(file, highscore_save_file_path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+    char line[6];
+    storage_file_read(file, line, 6);
+    ret = atoi(line);
+  }
+
+  storage_file_free(file);
+  furi_record_close(RECORD_STORAGE);
+
+  return ret;
+}
+
+void save_highscore(uint32_t score) {
+  Storage* storage = furi_record_open(RECORD_STORAGE);
+
+  File* file = storage_file_alloc(storage);
+  if (storage_file_open(file, highscore_save_file_path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+    char line[6];
+    snprintf(line, 6, "%ld", score);
+    storage_file_write(file, line, strlen(line));
+    storage_file_write(file, "\n", 1);
+  }
+
+  storage_file_free(file);
+  furi_record_close(RECORD_STORAGE);
 }
 
 // Initialize game
@@ -676,6 +711,9 @@ static void render_callback(Canvas* canvas, void* ctx_void) {
     } else if(ctx->state == STATE_WIN) {
         draw_simple_modal(canvas, "YOU WIN!");
         elements_button_center(canvas, "Restart");
+        if (load_highscore() < ctx->score) {
+            save_highscore(ctx->score);
+        }
     }
     
     furi_mutex_release(ctx->mutex);
